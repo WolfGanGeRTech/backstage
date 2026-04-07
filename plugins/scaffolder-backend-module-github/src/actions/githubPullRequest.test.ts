@@ -1271,6 +1271,61 @@ describe('createPublishGithubPullRequestAction', () => {
     });
   });
 
+  describe('with rate limit errors', () => {
+    let input: GithubPullRequestActionInput;
+    let ctx: ActionContext<GithubPullRequestActionInput, any, any>;
+
+    beforeEach(() => {
+      input = {
+        repoUrl: 'github.com?owner=myorg&repo=myrepo',
+        title: 'Create my new app',
+        branchName: 'new-app',
+        description: 'This PR is really good',
+      };
+
+      mockDir.setContent({
+        [workspacePath]: { 'file.txt': 'Hello there!' },
+      });
+
+      ctx = createMockActionContext({ input, workspacePath });
+    });
+
+    it('passes logger to clientFactory', async () => {
+      const clientFactory = jest.fn(async () => fakeClient as any);
+      const githubCredentialsProvider: GithubCredentialsProvider = {
+        getCredentials: jest.fn(),
+      };
+
+      const instanceWithFactory = createPublishGithubPullRequestAction({
+        integrations,
+        githubCredentialsProvider,
+        clientFactory,
+        config,
+      });
+
+      await instanceWithFactory.handler(ctx);
+
+      expect(clientFactory).toHaveBeenCalledWith(
+        expect.objectContaining({ logger: ctx.logger }),
+      );
+    });
+
+    it('wraps secondary rate limit errors as GithubResponseError', async () => {
+      const rateLimitError = Object.assign(
+        new Error('You have exceeded a secondary rate limit'),
+        {
+          name: 'HttpError',
+          status: 403,
+        },
+      );
+      fakeClient.createPullRequest.mockRejectedValueOnce(rateLimitError);
+
+      await expect(instance.handler(ctx)).rejects.toThrow(
+        'Pull request creation failed',
+      );
+    });
+  });
+
   describe('with createWhenEmpty equals false', () => {
     let input: GithubPullRequestActionInput;
     let ctx: ActionContext<GithubPullRequestActionInput, any, any>;

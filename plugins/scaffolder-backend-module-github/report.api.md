@@ -8,6 +8,7 @@ import { CatalogService } from '@backstage/plugin-catalog-node';
 import { Config } from '@backstage/config';
 import { createPullRequest } from 'octokit-plugin-create-pull-request';
 import { GithubCredentialsProvider } from '@backstage/integration';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { Octokit } from 'octokit';
 import { OctokitOptions } from '@octokit/core/dist-types/types';
 import { ScmIntegrationRegistry } from '@backstage/integration';
@@ -205,6 +206,7 @@ export interface CreateGithubPullRequestActionOptions {
     owner: string;
     repo: string;
     token?: string;
+    logger?: LoggerService;
   }) => Promise<
     Octokit & {
       createPullRequest(options: createPullRequest.Options): Promise<{

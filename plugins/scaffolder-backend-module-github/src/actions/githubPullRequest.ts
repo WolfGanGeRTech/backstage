@@ -52,6 +52,7 @@ export const defaultClientFactory: CreateGithubPullRequestActionOptions['clientF
     repo,
     host = 'github.com',
     token: providedToken,
+    logger,
   }) => {
     const octokitOptions = await getOctokitOptions({
       integrations,
@@ -65,7 +66,46 @@ export const defaultClientFactory: CreateGithubPullRequestActionOptions['clientF
     const OctokitPR = Octokit.plugin(createPullRequest);
     return new OctokitPR({
       ...octokitOptions,
-      ...{ throttle: { enabled: false } },
+      throttle: {
+        onRateLimit: (
+          retryAfter: number,
+          options: any,
+          _octokit: any,
+          retryCount: number,
+        ) => {
+          logger?.warn(
+            `Request quota exhausted for request ${options.method} ${options.url}`,
+          );
+          if (retryCount < 2) {
+            logger?.warn(
+              `Retrying after ${retryAfter} seconds for the ${
+                retryCount + 1
+              } time due to rate limit`,
+            );
+            return true;
+          }
+          return false;
+        },
+        onSecondaryRateLimit: (
+          retryAfter: number,
+          options: any,
+          _octokit: any,
+          retryCount: number,
+        ) => {
+          logger?.warn(
+            `Secondary rate limit exhausted for request ${options.method} ${options.url}`,
+          );
+          if (retryCount < 2) {
+            logger?.warn(
+              `Retrying after ${retryAfter} seconds for the ${
+                retryCount + 1
+              } time due to secondary rate limit`,
+            );
+            return true;
+          }
+          return false;
+        },
+      },
     });
   };
 
@@ -92,6 +132,7 @@ export interface CreateGithubPullRequestActionOptions {
     owner: string;
     repo: string;
     token?: string;
+    logger?: LoggerService;
   }) => Promise<
     Octokit & {
       createPullRequest(options: createPullRequest.Options): Promise<{
@@ -313,6 +354,7 @@ export const createPublishGithubPullRequestAction = (
         owner,
         repo,
         token: providedToken,
+        logger: ctx.logger,
       });
 
       const fileRoot = sourcePath
